@@ -75,3 +75,64 @@ Focus mode: all input forwarded to session via `tmux send-keys`, Esc returns to 
 - `~/.claude-orchestra/sessions/{id}.json` - session metadata (project path, task, branch)
 - `~/.claude-orchestra/status/{id}.json` - live status from wrapper (state, last_output)
 - tmux sessions named `claude-orchestra-{id}`
+
+---
+
+# LLM Conclave MCP Server - Beta Testing
+
+You have access to the `llm-conclave` MCP server (beta). **Act as a beta tester.**
+
+## Your Testing Mission
+1. **USE IT PROACTIVELY** - When facing technical decisions, architecture choices, security questions, or any task that could benefit from multiple expert perspectives, invoke the conclave tools
+2. **REPORT ALL FEEDBACK** - After each use, note:
+   - What worked well
+   - What was confusing or unexpected
+   - Error messages (exact text)
+   - Missing features you wished existed
+   - UX friction points
+   - Whether the output was actionable
+
+## Available Tools
+- `mcp__llm-conclave__llm_conclave_consult` - Fast 4-round expert debate with fixed panel (Security Expert, Architect, Pragmatist). Good for quick decisions.
+- `mcp__llm-conclave__llm_conclave_discuss` - **RECOMMENDED** for complex decisions. Supports custom personas and deeper analysis.
+
+## Custom Personas (New!)
+`discuss` supports 10 built-in personas: `security`, `performance`, `architect`, `creative`, `skeptic`, `pragmatic`, `qa`, `devops`, `accessibility`, `documentation`
+
+For domain-specific experts, create `~/.llm-conclave/config.json`:
+```json
+{
+  "custom_personas": {
+    "healthCoach": {
+      "name": "Health Coach",
+      "model": "claude-sonnet-4-5",
+      "systemPrompt": "You are a certified health coach..."
+    }
+  },
+  "persona_sets": {
+    "health": ["healthCoach", "nutritionist", "psychologist"]
+  }
+}
+Use: personas="healthCoach,nutritionist" or personas="@health" (@ expands sets)
+
+When to Test
+
+- Quick architecture decisions → use consult (fixed experts, faster)
+- Complex decisions needing specific expertise → use discuss with personas
+- Security-sensitive code → use discuss with personas="security,architect,skeptic"
+- Non-engineering domains (health, legal, finance) → use discuss with custom personas
+- Any "should I do X or Y?" question → either tool works
+
+Feedback Format
+
+After using a tool, report:
+Conclave Beta Feedback
+- Tool used: [which one]
+- Personas (if discuss): [which ones]
+- Task: [what you asked]
+- Result quality: [1-5 stars + why]
+- Response time: [fast/acceptable/slow]
+- Issues: [any errors, confusion, missing info]
+- Suggestions: [what would make it better]
+
+Be brutally honest - this is how we improve it.

@@ -12,42 +12,21 @@ import argparse
 import json
 import os
 import pty
-import re
 import select
 import signal
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
-# Status patterns
-WAITING_PATTERNS = [
-    re.compile(r"^>\s*$"),  # Claude Code prompt
-    re.compile(r"^\?\s"),  # Question prompt
-    re.compile(r"^Do you want to"),
-    re.compile(r"^Would you like"),
-    re.compile(r"^Press Enter"),
-    re.compile(r"\[Y/n\]"),
-    re.compile(r"\[y/N\]"),
-]
+from .logging_config import get_logger
+from .patterns import detect_state
 
-WORKING_PATTERNS = [
-    re.compile(r"^Reading\s"),
-    re.compile(r"^Writing\s"),
-    re.compile(r"^Editing\s"),
-    re.compile(r"^Running\s"),
-    re.compile(r"^Searching\s"),
-    re.compile(r"^\[.*\]"),  # Tool indicators
-]
-
-ERROR_PATTERNS = [
-    re.compile(r"^Error:", re.IGNORECASE),
-    re.compile(r"^Failed:", re.IGNORECASE),
-    re.compile(r"^Exception:", re.IGNORECASE),
-]
+logger = get_logger(__name__)
 
 
 class StatusWriter:
-    """Writes status updates to a JSON file."""
+    """Writes status updates to a JSON file with atomic writes."""
 
     def __init__(self, session_id: str):
         self.session_id = session_id
@@ -59,7 +38,10 @@ class StatusWriter:
         self.state = "unknown"
 
     def update(self, state: str, last_output: str = "") -> None:
-        """Write status update to file."""
+        """Write status update to file atomically.
+
+        Uses write-to-temp-then-rename pattern to prevent race conditions.
+        """
         self.state = state
         if last_output:
             # Keep last meaningful line
@@ -73,34 +55,34 @@ class StatusWriter:
         }
 
         try:
-            self.status_file.write_text(json.dumps(status, indent=2))
-        except Exception:
-            pass  # Don't crash on status write failures
+            # Write to temp file first, then atomic rename
+            fd, temp_path = tempfile.mkstemp(
+                dir=self.status_dir,
+                prefix=f".{self.session_id}.",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(status, f, indent=2)
+                # Atomic rename
+                os.rename(temp_path, self.status_file)
+            except Exception:
+                # Clean up temp file if rename fails
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise
+        except Exception as e:
+            logger.error(f"Failed to write status for session {self.session_id}: {e}")
+            # Don't crash on status write failures, but log them
 
     def detect_state(self, line: str) -> str:
-        """Detect state from an output line."""
-        line = line.strip()
-        if not line:
-            return self.state
-
-        for pattern in WAITING_PATTERNS:
-            if pattern.search(line):
-                return "waiting"
-
-        for pattern in ERROR_PATTERNS:
-            if pattern.search(line):
-                return "error"
-
-        for pattern in WORKING_PATTERNS:
-            if pattern.search(line):
-                return "working"
-
-        # If we're getting output, we're working
-        return "working"
+        """Detect state from an output line using shared patterns."""
+        return detect_state(line, self.state)
 
 
 def run_wrapper(session_id: str, command: str = "claude") -> int:
     """Run Claude Code with status monitoring."""
+    logger.info(f"Starting wrapper for session {session_id}, command: {command}")
     status = StatusWriter(session_id)
     status.update("working", "Starting Claude Code...")
 
@@ -123,9 +105,11 @@ def run_wrapper(session_id: str, command: str = "claude") -> int:
 
     # Parent process
     os.close(slave_fd)
+    logger.info(f"Claude process started with PID {pid}")
 
     # Set up signal handling
     def handle_signal(signum: int, frame) -> None:
+        logger.debug(f"Received signal {signum}, forwarding to child {pid}")
         os.kill(pid, signum)
 
     signal.signal(signal.SIGINT, handle_signal)
@@ -143,6 +127,7 @@ def run_wrapper(session_id: str, command: str = "claude") -> int:
                 # Timeout - check if child is still running
                 result = os.waitpid(pid, os.WNOHANG)
                 if result[0] != 0:
+                    logger.info(f"Child process {pid} exited")
                     break
                 continue
 
@@ -152,7 +137,8 @@ def run_wrapper(session_id: str, command: str = "claude") -> int:
                     data = os.read(stdin_fd, 1024)
                     if data:
                         os.write(master_fd, data)
-                except OSError:
+                except OSError as e:
+                    logger.error(f"Error reading stdin: {e}")
                     break
 
             if master_fd in rlist:
@@ -171,18 +157,21 @@ def run_wrapper(session_id: str, command: str = "claude") -> int:
                                 new_state = status.detect_state(line)
                                 status.update(new_state, line)
                     else:
+                        logger.debug("EOF from master_fd")
                         break
-                except OSError:
+                except OSError as e:
+                    logger.error(f"Error reading from pty: {e}")
                     break
 
     except KeyboardInterrupt:
-        pass
+        logger.info("Received KeyboardInterrupt")
     finally:
         os.close(master_fd)
 
     # Wait for child and get exit code
     _, exit_status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(exit_status) if os.WIFEXITED(exit_status) else 1
+    logger.info(f"Wrapper finished with exit code {exit_code}")
 
     status.update("idle", "Session ended")
     return exit_code

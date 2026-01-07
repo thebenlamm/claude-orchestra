@@ -9,6 +9,13 @@ dependencies = [
     "pydantic>=2.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+]
+
 [project.scripts]
 claude-orchestra = "claude_orchestra.__main__:main"
 cc-wrapper = "claude_orchestra.wrapper:main"
@@ -29,3 +36,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short"

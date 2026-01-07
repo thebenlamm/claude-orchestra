@@ -2,12 +2,11 @@
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 from ...session.manager import SessionManager
-from ...session.models import Session
 from ..widgets.session_row import SessionRow
 
 
@@ -32,23 +31,23 @@ class DashboardScreen(Screen):
         background: $surface;
     }
 
+    #dashboard-header {
+        height: 3;
+        padding: 0 1;
+        background: $primary-background;
+        color: $text;
+    }
+
     #session-list {
         height: 1fr;
         border: solid $primary-background;
-        margin: 1;
+        margin: 0 1 1 1;
     }
 
     #empty-message {
         text-align: center;
         padding: 2;
         color: $text-muted;
-    }
-
-    #help-bar {
-        height: 3;
-        padding: 1;
-        background: $panel;
-        dock: bottom;
     }
     """
 
@@ -60,6 +59,13 @@ class DashboardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        # Mode indicator header
+        session_count = len(self.manager.list_sessions())
+        yield Static(
+            f"[bold green]◉ DASHBOARD[/] │ {session_count} session(s) │ "
+            f"[dim]j/k[/] navigate │ [dim]Enter[/] focus │ [dim]n[/] new │ [dim]d[/] delete",
+            id="dashboard-header",
+        )
         with VerticalScroll(id="session-list"):
             sessions = self.manager.list_sessions()
             if not sessions:
@@ -92,9 +98,7 @@ class DashboardScreen(Screen):
         if not self._session_rows:
             return
         self._session_rows[self.selected_index].selected = False
-        self.selected_index = min(
-            self.selected_index + 1, len(self._session_rows) - 1
-        )
+        self.selected_index = min(self.selected_index + 1, len(self._session_rows) - 1)
         self._session_rows[self.selected_index].selected = True
         self._session_rows[self.selected_index].scroll_visible()
 
@@ -112,7 +116,7 @@ class DashboardScreen(Screen):
         if not self._session_rows:
             return
         session = self._session_rows[self.selected_index].session
-        self.app.push_screen("session", {"session_id": session.id})
+        self.app.push_screen("session", session_id=session.id)
 
     def action_new_session(self) -> None:
         """Create a new session."""
@@ -123,14 +127,14 @@ class DashboardScreen(Screen):
         if not self._session_rows:
             return
         session = self._session_rows[self.selected_index].session
-        self.app.push_screen("confirm_delete", {"session_id": session.id})
+        self.app.push_screen("confirm_delete", session_id=session.id)
 
     def action_edit_task(self) -> None:
         """Edit the selected session's task description."""
         if not self._session_rows:
             return
         session = self._session_rows[self.selected_index].session
-        self.app.push_screen("edit_task", {"session_id": session.id})
+        self.app.push_screen("edit_task", session_id=session.id)
 
     def action_refresh(self) -> None:
         """Force refresh of all sessions."""
@@ -148,8 +152,15 @@ class DashboardScreen(Screen):
         container = self.query_one("#session-list", VerticalScroll)
         container.remove_children()
 
-        # Rebuild
+        # Update header with new count
         sessions = self.manager.list_sessions()
+        header = self.query_one("#dashboard-header", Static)
+        header.update(
+            f"[bold green]◉ DASHBOARD[/] │ {len(sessions)} session(s) │ "
+            f"[dim]j/k[/] navigate │ [dim]Enter[/] focus │ [dim]n[/] new │ [dim]d[/] delete"
+        )
+
+        # Rebuild
         if not sessions:
             container.mount(
                 Static(
@@ -168,6 +179,4 @@ class DashboardScreen(Screen):
 
         # Fix selection if needed
         if self._session_rows:
-            self.selected_index = min(
-                self.selected_index, len(self._session_rows) - 1
-            )
+            self.selected_index = min(self.selected_index, len(self._session_rows) - 1)

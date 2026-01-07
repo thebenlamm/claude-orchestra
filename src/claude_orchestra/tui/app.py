@@ -2,9 +2,9 @@
 
 from textual.app import App
 from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
-from textual.containers import Container, Vertical, Horizontal
 
 from ..session.manager import SessionManager
 from .screens.dashboard import DashboardScreen
@@ -74,10 +74,11 @@ class NewSessionScreen(ModalScreen):
             try:
                 self.manager.create_session(project, task or "(no description)")
                 self.app.pop_screen()
-                # Refresh dashboard
-                dashboard = self.app.query_one(DashboardScreen)
-                dashboard.refresh_session_list()
-                self.notify(f"Created session for {project}")
+                # Refresh dashboard - use get_screen since it's an installed screen
+                dashboard = self.app.get_screen("dashboard")
+                if isinstance(dashboard, DashboardScreen):
+                    dashboard.refresh_session_list()
+                self.app.notify(f"Created session for {project}")
             except Exception as e:
                 self.notify(f"Error: {e}", severity="error")
 
@@ -131,10 +132,11 @@ class ConfirmDeleteScreen(ModalScreen):
         elif event.button.id == "delete-btn":
             self.manager.delete_session(self.session_id)
             self.app.pop_screen()
-            # Refresh dashboard
-            dashboard = self.app.query_one(DashboardScreen)
-            dashboard.refresh_session_list()
-            self.notify("Session deleted")
+            # Refresh dashboard - use get_screen since it's an installed screen
+            dashboard = self.app.get_screen("dashboard")
+            if isinstance(dashboard, DashboardScreen):
+                dashboard.refresh_session_list()
+            self.app.notify("Session deleted")
 
 
 class OrchestraApp(App):
