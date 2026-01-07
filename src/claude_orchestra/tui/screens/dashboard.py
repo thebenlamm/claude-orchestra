@@ -145,12 +145,12 @@ class DashboardScreen(Screen):
         """Quit the orchestrator (sessions continue in tmux)."""
         self.app.exit()
 
-    def refresh_session_list(self) -> None:
+    async def refresh_session_list(self) -> None:
         """Rebuild the session list after changes."""
         # Clear existing rows
         self._session_rows.clear()
         container = self.query_one("#session-list", VerticalScroll)
-        container.remove_children()
+        await container.remove_children()  # Await ensures widgets removed before mounting
 
         # Update header with new count
         sessions = self.manager.list_sessions()

@@ -60,7 +60,7 @@ class NewSessionScreen(ModalScreen):
                 yield Button("Create", variant="primary", id="create-btn")
                 yield Button("Cancel", id="cancel-btn")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
             self.app.pop_screen()
         elif event.button.id == "create-btn":
@@ -77,7 +77,7 @@ class NewSessionScreen(ModalScreen):
                 # Refresh dashboard - use get_screen since it's an installed screen
                 dashboard = self.app.get_screen("dashboard")
                 if isinstance(dashboard, DashboardScreen):
-                    dashboard.refresh_session_list()
+                    await dashboard.refresh_session_list()
                 self.app.notify(f"Created session for {project}")
             except Exception as e:
                 self.notify(f"Error: {e}", severity="error")
@@ -126,7 +126,7 @@ class ConfirmDeleteScreen(ModalScreen):
                 yield Button("Delete", variant="error", id="delete-btn")
                 yield Button("Cancel", id="cancel-btn")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
             self.app.pop_screen()
         elif event.button.id == "delete-btn":
@@ -135,7 +135,7 @@ class ConfirmDeleteScreen(ModalScreen):
             # Refresh dashboard - use get_screen since it's an installed screen
             dashboard = self.app.get_screen("dashboard")
             if isinstance(dashboard, DashboardScreen):
-                dashboard.refresh_session_list()
+                await dashboard.refresh_session_list()
             self.app.notify("Session deleted")
 
 
